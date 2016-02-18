@@ -59,6 +59,8 @@ CAlvinXuLog::~CAlvinXuLog(void)
 	}
 	ALVIN_DEBUG(CAlvinXuLog:Stop!\n);					//Debug输出
 }
+
+
 #ifdef WIN32
 #define Linux_Win_vsnprintf _vsnprintf
 #else //not WIN32
@@ -88,4 +90,86 @@ int SafePrintf(char* szBuf, int nMaxLength, char* szFormat, ...)
 SafePrintf_END_PROCESS:
 	return nListCount;
 
+}
+
+void CAlvinXuLog::MakeFileName(void)						//创造一个新的文件名
+{
+	char szTemp[LOG_ITEM_LENGTH_MAX];						//临时缓冲区
+	MakeATimeString(szTemp, LOG_ITEM_LENGTH_MAX);			//获得时间戳字符串
+	FixFileInfo();											//维护文件总个数不超标(默认72个)
+	int nLen = SafePrintf(									//注意看这句，利用构造函数中的种子名字
+		m_szFileName,										//加上时间戳，后面再加上".log"后缀
+		FILENAME_STRING_LENGTH*2,							//生成日志文件名
+		"%s_%s.log",
+		m_szFilePath,
+		szTemp);
+	nLen++;													//保留最后'\0'的位置
+	//将新的文件名添加到队列
+	int nAddLastRet = m_pFileInfoQueue->AddLast(m_szFileName, nLen);
+	if (0 >= nAddLastRet)
+	{	//这是一个特殊的防护，如果队列满了(内存不够用)，删除最开始的三个文件名
+		//释放内存空间，这是预防服务器业务太繁忙，导致内存不够用，队列无法添加的
+		//规避措施，这也体现非关键模块为关键业务模块让路的思维
+		DeleteFirstFile();
+		DeleteFirstFile();
+		DeleteFirstFile();
+		//删除三个之后尝试重新添加
+		nAddLastRet = m_pFileInfoQueue->AddLast(m_szFileName, nLen);
+		//如果此时添加仍然失败，投降，日志发生一点错乱没有关系。
+	}
+	m_nFileSize = 0;							//新文件创建，文件长度为0
+	//下面逻辑，新创建一个文件，在文件头先打印一点文件名相关信息，帮助以后的跟踪查找
+	time(&m_tFileNameMake);
+	{	//由于这是非业务打印，因此不希望输出到屏幕，这里临时将屏幕开关关闭
+		bool bPrintf2Scr = m_bPrintf2ScrFlag;
+		m_bPrintf2ScrFlag = false;
+		_Printf("Alvin.Xu. base libeary log file %s\n", m_szFileName);
+		_Printf("-----------------------------------\n");
+		m_bPrintf2ScrFlag = bPrintf2Scr;			//输出完毕屏幕开关恢复原值
+	}
+}
+
+void CAlvinXuLog::GetFileName(void)//获取当前文件名
+{
+	time_t tNow;				//当前时间戳变量
+	unsigned long ulDeltaT = 0; //t变量
+	if('\0' == m_szFileName[0])		//如果第一次启动文件名为空
+	{
+		MakeFileName();
+		goto CAlvinXuLog_GetFileName_End_Process;
+	}
+	time(&tNow);					//求得当前时间
+	ulDeltaT = (unsigned long)tNow - m_tFileNameMake;	//计算t
+	if (LOG_FILE_CHANGE_NAME_PRE_SECONDS <= ulDeltaT)
+	{
+		MakeFileName();				//如果t超过3600秒，创造文件名返回
+		goto CAlvinXuLog_GetFileName_End_Process;
+	}
+CAlvinXuLog_GetFileName_End_Process:
+	return;
+}
+
+int CAlvinXuLog::MakeATimeString(char* szBuffer, int nBufferSize)
+{
+	int i = 0;
+	time_t t;
+	struct tm *pTM = NULL;
+	int nLength = 0;
+	if (LOG_FILE_SIZE_MAX > nBufferSize)		//防御性设计
+		goto CAlvinXuLog_MakeATimeString_End_Process;
+	time(&t);									//获得当前时间
+	pTM = localtime(&t);						//或得当前时区的时间戳字符串
+	nLength = SafePrintf(szBuffer, LOG_ITEM_LENGTH_MAX, "%s", asctime(pTM));	//时间戳字符串入缓冲区
+	//localtime生成的字符串最后自带一个'\n'，即回车符，这不利于后续的打印
+	//因此下面这行向前退一格清除掉这个回车符。这是一个小经验。
+	szBuffer[nLength - 1] = '\0';
+	//文件名有一定的限制，一定不要有空格，':'字符这里可以过滤一下，
+	//将时间戳中的非法字符都改变成各系统都能接受的'_'下划线
+	for(i = 0; i < nLength; i++)
+	{
+		if ('' == szBuffer[i])szBuffer[i] = '_';
+		if (':' == szBuffer[i])szBuffer[i] = '_';
+	}		
+CAlvinXuLog_MakeATimeString_End_Process:
+	return nLength;
 }

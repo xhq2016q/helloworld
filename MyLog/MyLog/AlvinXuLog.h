@@ -1,17 +1,51 @@
 #pragma once
 //仿写一个日志文件
-#define FILENAME_STRING_LENGTH 256
+//参数表
+//path:路径
+//name:主文件名(file.ext中的file)
+//fullname:最后生成的全文件名缓冲区指针
+#define FULL_NAME(path, name, fullname, ext_name) \
+{\
+	if (strlen(path))\
+	{\
+		if (strlen(ext_name))\
+			SafePrintf(fullname, FILENAME_STRING_LENGTH,\
+			"%s%s%s.%s", path, PATH_CHAR, name, ext_name);\
+		else\
+			SafePrintf(fullname, FILENAME_STRING_LENGTH,\
+			"%s%s%s", path, PATH_CHAR, name);\
+	}\ 
+	else\
+	{\
+		if (strlen(ext_name))\
+			SafePrintf(fullname, FILENAME_STRING_LENGTH,\
+			"%s.%s", name, ext_name);\
+		else\
+			SafePrintf(fullname, FILENAME_STRING_LENGTH, "%s", name);\
+	}\
+}
+
+typedef void (*_APP_INFO_OUT_CALLBACK)(char* szInfo, void* pCallParam);
+
+#define LOG_FILE_SIZE_MAX (1*1024*1024*1024)				//每个日志文件最大1G
+#define LOG_ITEM_LENGTH_MAX (2*1024)						//单条log最大长度2k
+#define LOG_FILE_CHANGE_NAME_PRE_SECONDS (60*60)			//日志文件1小时更换一次名字
+#define LOG_FILE_INFO_BUFFER_SIZE (256*1024)				//日志目录最大长度(超长删除)
+#define LOG_FILE_DEFAULT_HOLD 72							//一般保持3天的数据
+#define LOG_TIME_STRING_MAX 128								//时间戳字符串长度
+
+#define FILENAME_STRING_LENGTH 256							
 class CAlvinXuLog
 {
 public:					//静态工具函数类
-	static int MakeTimeString(char* szBuffer, int nBuffer, int nBufferSize);
+	static int MakeATimeString(char* szBuffer, int nBufferSize);
 
 public:														//构造函数和析构函数
 	CAlvinXuLog(CAlvinLowDebug* pDebug,					//debug对象指针(log也需要debug)
 				CAlvinMemoryPoolWithLock* pMemPool,		//内存池指针，内存队列要用
 				char* szLogPath,						//日志路径
 				char* szAppName,						//应用名（修饰日志文件）
-				int nHoldFileMax=LOF_FILE_DEFAULT_HOLD,	//保留多少个文件
+				int nHoldFileMax=LOG_FILE_DEFAULT_HOLD,	//保留多少个文件
 				bool bSyslogFlag=true,					//日志级别开关
 				bool bDebug1Flag=true,
 				bool bDebug2Flag=false,
@@ -37,6 +71,8 @@ private:												//内部功能函数
 	void DeleteFirstFile(void);							//删除最老的文件
 	void FixFileInfo(void);								//修订文件名目录队列
 	void MakeFileName(void);							//根据时间和文件大小，定制文件名
+	void GetFileName(void);								//获取当前文件名
+ 
 private://内部私有变量区
 	CMutexLock m_Lock;									//线程安全锁
 	char m_szFilePath(FILENAME_STRING_LENGTH);			//文件路径
@@ -59,28 +95,3 @@ int SafePrintf(char* szBuf, int nMaxLength, char* szFormat, ...);
 #else
 #define PATH_CHAR "/"									//Unix,Linux使用'/'
 #endif
-
-//参数表
-//path:路径
-//name:主文件名(file.ext中的file)
-//fullname:最后生成的全文件名缓冲区指针
-#define FULL_NAME(path, name, fullname, ext_name)\
-{\
-	if (strlen(path))\
-	{\
-		if (strlen(ext_name))\
-			SafePrintf(fullname, FILENAME_STRING_LENGTH,\
-			"%s%s%s.%s", path, PATH_CHAR, name, ext_name);\
-		else\
-			SafePrintf(fullname, FILENAME_STRING_LENGTH,\
-			"%s%s%s", path, PATH_CHAR, name);\
-	}\ 
-	else\
-	{\
-		if (strlen(ext_name))\
-			SafePrintf(fullname, FILENAME_STRING_LENGTH,\
-			"%s.%s", name, ext_name);\
-		else\
-			SafePrintf(fullname, FILENAME_STRING_LENGTH, "%s", name);\
-	}\
-}
