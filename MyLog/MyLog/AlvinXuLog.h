@@ -1,11 +1,22 @@
 #pragma once
 //仿写一个日志文件
+
+#include "stdafx.h"
+
+#define CON_DEBUG	
+
+#ifdef CON_DEBUG
+#define CON_PRINTF	printf
+#else
+#define CON_PRINTF	/\
+/printf
+#endif
+
 //参数表
 //path:路径
 //name:主文件名(file.ext中的file)
 //fullname:最后生成的全文件名缓冲区指针
 #define FULL_NAME(path, name, fullname, ext_name) \
-{\
 	if (strlen(path))\
 	{\
 		if (strlen(ext_name))\
@@ -14,14 +25,14 @@
 		else\
 			SafePrintf(fullname, FILENAME_STRING_LENGTH,\
 			"%s%s%s", path, PATH_CHAR, name);\
-	}\ 
-	else\
+	}\ 	
+	//else\
 	{\
 		if (strlen(ext_name))\
-			SafePrintf(fullname, FILENAME_STRING_LENGTH,\
-			"%s.%s", name, ext_name);\
+		SafePrintf(fullname, FILENAME_STRING_LENGTH,\
+		"%s.%s", name, ext_name);\
 		else\
-			SafePrintf(fullname, FILENAME_STRING_LENGTH, "%s", name);\
+		SafePrintf(fullname, FILENAME_STRING_LENGTH, "%s", name);\
 	}\
 }
 
@@ -42,7 +53,7 @@ public:					//静态工具函数类
 
 public:														//构造函数和析构函数
 	CAlvinXuLog(CAlvinLowDebug* pDebug,					//debug对象指针(log也需要debug)
-				CAlvinMemoryPoolWithLock* pMemPool,		//内存池指针，内存队列要用
+				//CAlvinMemoryPoolWithLock* pMemPool,		//内存池指针，内存队列要用
 				char* szLogPath,						//日志路径
 				char* szAppName,						//应用名（修饰日志文件）
 				int nHoldFileMax=LOG_FILE_DEFAULT_HOLD,	//保留多少个文件
@@ -82,14 +93,15 @@ private://内部私有变量区
 	int m_nHoldFileMax;									//保留文件的数量，构造函数传入
 	_APP_INFO_OUT_CALLBACK m_pInfoOutCallback;			//应用程序拦截输出回调函数
 	void* m_pInfoOutCallbackParam;						//透传的回调函数的指针
-	bool m_bPrintf2ScrFlag;								//是否答印到屏幕的开关
+	bool m_bPrintf2ScrFlag;								//是否打印到屏幕的开关
 	char m_szFileInfoName[FILENAME_STRING_LENGTH];		//文件名
 	CAlvinLowDebug* m_pDebug;							//Debug对象指针
-	CAlvinMemoryPoolWithLock* m_pMemPool;				//内存池对象指针
-	CAlvinXuMemoryQueue* m_pFileInfoQueue;				//文件名队列
+	//CAlvinMemoryPoolWithLock* m_pMemPool;				//内存池对象指针
+	//CAlvinXuMemoryQueue* m_pFileInfoQueue;				//文件名队列
 };
 
 int SafePrintf(char* szBuf, int nMaxLength, char* szFormat, ...);
+int dbg2file(char* szFileName, char* szMode, char *szFormat, ...);
 #if WIN32
 #define PATH_CHAR "\\"									//Windows 下使用'\'作为路径的间隔符
 #else

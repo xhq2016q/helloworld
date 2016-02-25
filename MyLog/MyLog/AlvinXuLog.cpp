@@ -167,9 +167,216 @@ int CAlvinXuLog::MakeATimeString(char* szBuffer, int nBufferSize)
 	//将时间戳中的非法字符都改变成各系统都能接受的'_'下划线
 	for(i = 0; i < nLength; i++)
 	{
-		if ('' == szBuffer[i])szBuffer[i] = '_';
+		if (' ' == szBuffer[i])szBuffer[i] = '_';
 		if (':' == szBuffer[i])szBuffer[i] = '_';
 	}		
 CAlvinXuLog_MakeATimeString_End_Process:
 	return nLength;
+}
+
+void CAlvinXuLog::FixFileInfo(void)			//维护文件总个数不超标
+{
+	int nAddLastRet = 0;
+	//请注意，这里不是if，而是一个while，如果因某种原因，超标很多文件
+	//利用这个循环技巧，很轻松的将超标文件删到只有72个，
+	//很多时候，维护数组不超限，都是使用这个技巧
+	while(m_pFileInfoQueue->GetTokenCount() >= m_nHoldFileMax)
+	{
+		DeleteFirstFile();
+	}
+}
+
+void CAlvinXuLog::DeleteFirstFile(void)						//删除第一个文件
+{
+	char szFirstFile[FILENAME_STRING_LENGTH];				//文件名缓冲区
+	int nFirstFileNameLen = 0;								//文件名字符串长度
+	//从文件名数组中，弹出第一个文件名
+	nFirstFileNameLen = m_pFileInfoQueue->GetAndDeleteFirst(szFirstFile, FILENAME_STRING_LENGTH);
+	if (0 >= nFirstFileNameLen)								//失败返回
+	goto CAlvinXuLog_DeleteFirstFile_End_Process;
+CAlvinXuLog_DeleteFirstFile_End_Process:
+	return;
+}
+
+int CAlvinXuLog::_AlvinSyslog(char *szFormat, ...)
+{	//这段比较经典，变参函数处理模块，不再赘述
+	char szBuf[LOG_ITEM_LENGTH_MAX];
+	int nMaxLength = LOG_ITEM_LENGTH_MAX;
+	int nListCount = 0;
+	va_list pArgList;
+	va_start(pArgList, szFormat);
+	nListCount += Linux_Win_vsnprintf(szBuf + nListCount,
+		nMaxLength - nListCount, szFormat, pArgList);
+	va_end(pArgList);
+	if (m_bSyslogFlag)				//如果开关打开
+	{
+		m_Lock.Lock();				//加锁
+		{
+			_Printf("%s", szBuf);	//真实的打印
+		}
+		m_Lock.Unlock();				//解锁
+	}
+	return nListCount;				//返回长度
+}
+
+int CAlvinXuLog::_AlvinDebug1(char *szFormat, ...)
+{	//这段比较经典，变参函数处理模块，不再赘述
+	char szBuf[LOG_ITEM_LENGTH_MAX];
+	int nMaxLength = LOG_ITEM_LENGTH_MAX;
+	int nListCount = 0;
+	va_list pArgList;
+	va_start(pArgList, szFormat);
+	nListCount += Linux_Win_vsnprintf(szBuf+nListCount,
+		nMaxLength - nListCount, szFormat, pArgList);
+	va_end(pArgList);
+	if(nListCount > (nMaxLength - 1)) nMaxLength - 1;
+	*(szBuf + nListCount) = '\0';
+
+	if (m_bDebug1Flag)				//如果开关打开
+	{
+		m_Lock.Lock();				//加锁
+		{
+			_Printf("%s", szBuf);	//真实的打印
+		}
+		m_Lock.Unlock();				//解锁
+	}
+	return nListCount;				//返回长度
+}
+
+
+
+int CAlvinXuLog::_AlvinDebug2(char *szFormat, ...)
+{	//这段比较经典，变参函数处理模块，不再赘述
+	char szBuf[LOG_ITEM_LENGTH_MAX];
+	int nMaxLength = LOG_ITEM_LENGTH_MAX;
+	int nListCount = 0;
+	va_list pArgList;
+	va_start(pArgList,szFormat);
+	nListCount += Linux_Win_vsnprintf(szBuf + nListCount, nMaxLength - nListCount, szFormat, pArgList);
+	va_end(pArgList);
+	if (nListCount > (nMaxLength - 1))nListCount = nMaxLength - 1;
+	*(szBuf + nListCount) = '\0';
+
+	if(m_bDebug2Flag)						//如果开关打开
+	{
+		m_Lock.Lock();						//加锁
+		{
+			_Printf("%s", szBuf);			//真实的执行打印
+		}
+		m_Lock.Unlock();					//解锁
+	}
+	return nListCount;						//返回长度
+}
+
+int CAlvinXuLog::_AlvinDebug3(char *szFormat, ...)
+{	//这段比较经典，变参函数处理模块，不再赘述
+	char szBuf[LOG_ITEM_LENGTH_MAX];
+	int nMaxLength = LOG_ITEM_LENGTH_MAX;
+	int nListCount = 0;
+	va_list pArgList;
+	va_start(pArgList,szFormat);
+	nListCount += Linux_Win_vsnprintf(szBuf + nListCount, nMaxLength - nListCount, szFormat, pArgList);
+	va_end(pArgList);
+	if (nListCount > (nMaxLength - 1))nListCount = nMaxLength - 1;
+	*(szBuf + nListCount) = '\0';
+
+	if(m_bDebug3Flag)						//如果开关打开
+	{
+		m_Lock.Lock();						//加锁
+		{
+			_Printf("%s", szBuf);			//真实的执行打印
+		}
+		m_Lock.Unlock();					//解锁
+	}
+	return nListCount;						//返回长度
+}
+
+
+void CAlvinXuLog::_AlvinDebug4Bin(char* pBuffer, int nLength)
+{
+	m_Lock.Lock();						//加锁
+	{
+		GetFileName();					//获取文件名
+		dbg2file4bin(m_szFileName, "a+", pBuffer, nLength);		//输出到文件
+		dbg_bin(pBuffer, nLength);		//输出到屏幕
+	}
+	m_Lock.Unlock();					//解锁
+}
+
+int CAlvinXuLog::_Printf(char *szFormat, ...)
+{
+	char szTime[LOG_ITEM_LENGTH_MAX];
+	char szTemp[LOG_ITEM_LENGTH_MAX];
+	char szBuf[LOG_ITEM_LENGTH_MAX];
+	int nMaxLength = LOG_ITEM_LENGTH_MAX;
+	int nListCount = 0;
+	time_t t;
+	struct tm *pTM = NULL;
+	int nLength = 0;
+	//获取当前时间戳，这在MakeATimeString中已经有介绍
+	time(&t);
+	pTM = localtime(&t);
+	nLength = SafePrintf(szTemp, LOG_ITEM_LENGTH_MAX, "%s", asctime(pTM));
+	szTemp[nLength - 1] = '\0';
+	SafePrintf(szTime, LOG_ITEM_LENGTH_MAX, "[%s]", szTemp);
+	//这段比较经典，变参函数处理模块，不再赘述
+	char szBuf[LOG_ITEM_LENGTH_MAX];
+	int nMaxLength = LOG_ITEM_LENGTH_MAX;
+	int nListCount = 0;
+	va_list pArgList;
+	va_start(pArgList,szFormat);
+	nListCount += Linux_Win_vsnprintf(szBuf + nListCount, nMaxLength - nListCount, szFormat, pArgList);
+	va_end(pArgList);
+	if (nListCount > (nMaxLength - 1))nListCount = nMaxLength - 1;
+	*(szBuf + nListCount) = '\0';
+
+	//得到当前使用的文件名
+	GetFileName();
+	//调用debug的功能函数，直接将信息输出到文件
+	nListCount = dbg2file(m_szFileName, "a+", "%s%s", szTime, szBuf);
+	if (m_bPrintf2ScrFlag)					//如果屏幕输出开关打开
+	{
+		ALVIN_XU_PRINTF("%s%s", szTime, szBuf);		//输出到屏幕
+	}
+	if(m_pInfoOutCallback)					//如果拦截函数存在
+	{										//输出到拦截函数
+		char szInfoOut[APP_INFO_OIT_STRING_MAX];
+		SafePrintf(szInfoOut, APP_INFO_OIT_STRING_MAX, "%s%s", szTime, szBuf);
+		m_pInfoOutCallback(szInfoOut, m_pInfoOutCallbackParam);
+	}
+	m_nFileSize += nListCount;				//这里很重要，修订文件长度
+											//维护模块需要这个值判定文件大小是否超标
+	return nListCount;						//返回输出的字节数
+}
+
+//向指定的缓冲区输出一个时间戳字符串
+//szFileName:用户指定的输出文件
+//szMode:常见的文件打开方式描述字符串，一般建议"a+"
+//返回输出字符总数(strlen的长度，不包括最后的'\0')
+int dbg2file(char* szFileName, char* szMode, char *szFormat, ...)
+{
+	//前一段和SafePrintf几乎一模一样
+	char szBuf[DEBUG_BUFFER_LENGTH];
+	char szTime[256];
+	int nListCount = 0;
+	va_list pArgList;
+	va_start(pArgList, szFormat);
+	nListCount += Linux_Win_vsnprintf(szBuf + nListCount, DEBUG_BUFFER_LENGTH + nListCount, szFormat, pArgList);
+	va_end(pArgList);
+	if (nListCount > (DEBUG_BUFFER_LENGTH - 1))
+		nListCount = DEBUG_BUFFER_LENGTH - 1;
+	*(szBuf + nListCount) = '\0';
+	//在此开始正式的输出到各个目标设备
+	GetATimeStamp(szTime, 256);
+	FILE *fp;
+	fp = fopen(szFileName, szMode);
+	if (fp)
+	{
+		nListCount = fprintf(fp, "[%s]%s", szTime, szBuf);		//文件打印
+		CON_PRINTF("[%s]%s", szTime, szBuf);					//屏幕打印
+		fclose(fp);
+	}
+	else
+		nListCount = 0;
+	return nListCount;
 }
